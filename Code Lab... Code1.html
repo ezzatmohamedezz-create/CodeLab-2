@@ -1,0 +1,348 @@
+import tkinter as tk
+from tkinter import messagebox
+import random
+import time
+
+# Constants
+MAX_QUESTIONS = 10
+MAX_SCORE = 100
+POINTS_FIRST_ATTEMPT = 10
+POINTS_SECOND_ATTEMPT = 5
+
+# Global Game State 
+class QuizState:
+    """Manages the current state of the quiz."""
+    def _init_(self):
+        self.score = 0
+        self.question_count = 0
+        self.current_question_attempt = 1 
+        self.current_answer = None
+        self.difficulty = 0 
+        self.start_time = 0
+        self.time_taken = 0
+        self.current_streak = 0
+        self.max_streak = 0
+
+quiz_state = QuizState()
+
+# Core Logic
+
+def randomInt(difficulty):
+    """
+    Determines the random integer values based on the difficulty level.
+
+    :param difficulty: An integer (1, 2, or 3) representing the level.
+    :return: A tuple (min_val, max_val) for the number range.
+    """
+    if difficulty == 1:      # [Easy: Single digit]
+        return (1, 9)
+    elif difficulty == 2:    # [Moderate: Double digit] 
+        return (10, 99)
+    elif difficulty == 3:    # [Advanced: Four digit]
+        return (1000, 9999)
+    else:
+        return (1, 9)
+
+def decideOperation():
+    """
+    Randomly decides whether the problem is an addition or subtraction.
+
+    :return: A character ('+' or '-') representing the operation.
+    """
+    return random.choice(['+', '-'])
+
+def isCorrect(user_answer, correct_answer):
+    """
+    Checks whether the user's answer was correct.
+
+    :param user_answer: The user's provided answer.
+    :param correct_answer: The actual correct answer.
+    :return: Boolean (True if correct, False otherwise).
+    """
+    try:
+        # Convert user input to integer
+        return int(user_answer) == correct_answer
+    except ValueError:
+        # user input is not a valid number
+        return False
+
+# Tkinter GUI Functions
+
+def clear_frame(frame):
+    """Removes all widgets from a Tkinter frame."""
+    for widget in frame.winfo_children():
+        widget.destroy()
+
+def displayMenu(master):
+    """
+    A function that displays the difficulty level menu at the beginning of the quiz.
+    """
+    clear_frame(master)
+    master.title("🧠 Maths Quiz - Select Difficulty")
+    quiz_state._init_() # Reset game
+
+    tk.Label(master, text="MATHS QUIZ", font=("Helvetica", 24, "bold"), fg="#1E90FF").pack(pady=(20, 10))
+    tk.Label(master, text="Select Difficulty Level:", font=("Helvetica", 14)).pack(pady=10)
+
+    # Dictionary 
+    difficulty_levels = {
+        1: ("Easy (1-digit numbers)", "#3CB371"),
+        2: ("Moderate (2-digit numbers)", "#FFD700"),
+        3: ("Advanced (4-digit numbers)", "#DC143C")
+    }
+
+    for level, (desc, color) in difficulty_levels.items():
+        # captures the [level] variable for the button command
+        tk.Button(master, text=f"{level}. {desc}",
+                  command=lambda l=level: start_quiz(master, l),
+                  font=("Helvetica", 12, "bold"),
+                  bg=color, fg="white",
+                  width=30, height=2).pack(pady=5)
+
+    tk.Label(master, text="Score 10 points for first attempt, 5 points for second.", font=("Helvetica", 10, "italic")).pack(pady=20)
+    
+def start_quiz(master, difficulty):
+    """Initializes the quiz and starts the first question."""
+    quiz_state.difficulty = difficulty
+    quiz_state.start_time = time.time()
+    quiz_state.question_count = 0
+    quiz_state.score = 0
+    quiz_state.current_streak = 0
+    quiz_state.max_streak = 0
+    master.title(f"🧠 Maths Quiz - Level {difficulty}")
+    displayProblem(master)
+
+def generate_problem_values(difficulty):
+    """Generates the numbers and operation for a new problem."""
+    min_val, max_val = randomInt(difficulty)
+    num1 = random.randint(min_val, max_val)
+    num2 = random.randint(min_val, max_val)
+    operation = decideOperation()
+
+    if operation == '-' and num1 < num2:
+        num1, num2 = num2, num1 # non-negative
+    
+    # Calculate the correct answer
+    if operation == '+':
+        correct_answer = num1 + num2
+    else: 
+        correct_answer = num1 - num2
+        
+    return num1, num2, operation, correct_answer
+
+def displayProblem(master):
+    """
+    A function that displays the question to the user and accepts their answer.
+    """
+    if quiz_state.question_count >= MAX_QUESTIONS:
+        quiz_state.time_taken = time.time() - quiz_state.start_time
+        displayResults(master)
+        return
+
+    clear_frame(master)
+    quiz_state.question_count += 1
+    quiz_state.current_question_attempt = 1
+    
+    # first attempt of a new question
+    if quiz_state.question_count > 0: 
+        quiz_state.num1, quiz_state.num2, quiz_state.operation, quiz_state.current_answer = \
+            generate_problem_values(quiz_state.difficulty)
+    
+    # Display Widgets
+    
+    # [Score, Q# and Streak]
+    status_frame = tk.Frame(master)
+    status_frame.pack(pady=10)
+    tk.Label(status_frame, text=f"Score: {quiz_state.score}", font=("Helvetica", 12, "bold")).pack(side=tk.LEFT, padx=15)
+    tk.Label(status_frame, text=f"Question {quiz_state.question_count} of {MAX_QUESTIONS}", font=("Helvetica", 14, "bold"), fg="#8B0000").pack(side=tk.LEFT, padx=15)
+    tk.Label(status_frame, text=f"Streak: {quiz_state.current_streak}", font=("Helvetica", 12, "bold")).pack(side=tk.LEFT, padx=15)
+    
+    # Time elapsed
+    time_elapsed = int(time.time() - quiz_state.start_time)
+    tk.Label(master, text=f"Time Elapsed: {time_elapsed} seconds", font=("Helvetica", 10, "italic")).pack(pady=5)
+    
+    # Problem text
+    problem_text = f"{quiz_state.num1} {quiz_state.operation} {quiz_state.num2} = ?"
+    tk.Label(master, text=problem_text, font=("Courier", 36, "bold"), fg="#00008B").pack(pady=20)
+    
+    # Ans Entry 
+    answer_entry = tk.Entry(master, font=("Helvetica", 20), width=10, justify='center')
+    answer_entry.pack(pady=10)
+    answer_entry.focus_set() # Focus on the entry box immediately
+    
+    # Submit Button
+    submit_button = tk.Button(master, text="Submit Answer", 
+                              command=lambda: check_answer(master, answer_entry.get()),
+                              font=("Helvetica", 14, "bold"), bg="#4CAF50", fg="white", width=15)
+    submit_button.pack(pady=10)
+
+    master.bind('<Return>', lambda event: check_answer(master, answer_entry.get()))
+
+def check_answer(master, user_input):
+    """
+    Handles the user's submission, checks the answer, awards points, and provides feedback.
+    """
+    
+    # Unbind
+    master.unbind('<Return>')
+    
+    # Try to convert input to an integer for checking
+    try:
+        user_answer = int(user_input)
+    except ValueError:
+        messagebox.showerror("Invalid Input", "Please enter a valid number.")
+        master.bind('<Return>', lambda event: check_answer(master, user_input)) # Rebind
+        return
+
+    is_correct = isCorrect(user_answer, quiz_state.current_answer)
+    
+    if is_correct:
+        # Correct Answer 
+        points_awarded = POINTS_FIRST_ATTEMPT if quiz_state.current_question_attempt == 1 else POINTS_SECOND_ATTEMPT
+        quiz_state.score += points_awarded
+        
+        # Streak 
+        quiz_state.current_streak += 1
+        quiz_state.max_streak = max(quiz_state.max_streak, quiz_state.current_streak)
+        
+        messagebox.showinfo("Correct!", 
+                            f"✅ Correct! You earned {points_awarded} points.\nTotal Score: {quiz_state.score}\nStreak: {quiz_state.current_streak}")
+        
+        # Move to the next question
+        displayProblem(master)
+        
+    else:
+        # Streak broke
+        quiz_state.current_streak = 0
+        
+        if quiz_state.current_question_attempt == 1:
+            # First attempt failed - give a second chance
+            messagebox.showerror("Incorrect (1st Attempt)", 
+                                 "❌ Incorrect. You get one more chance for 5 points.")
+            
+            # Re-display 
+            quiz_state.current_question_attempt = 2
+            
+            # Clear and re-draw
+            clear_frame(master) 
+            
+            # Re-draw problem with a feedback label
+            tk.Label(master, text=f"Wrong Answer! Try again (Attempt 2 for 5 points).", 
+                     font=("Helvetica", 12, "bold"), fg="#DC143C").pack(pady=5)
+            
+            status_frame = tk.Frame(master)
+            status_frame.pack(pady=10)
+            tk.Label(status_frame, text=f"Score: {quiz_state.score}", font=("Helvetica", 12, "bold")).pack(side=tk.LEFT, padx=15)
+            tk.Label(status_frame, text=f"Question {quiz_state.question_count} of {MAX_QUESTIONS}", font=("Helvetica", 14, "bold"), fg="#8B0000").pack(side=tk.LEFT, padx=15)
+            tk.Label(status_frame, text=f"Streak: {quiz_state.current_streak}", font=("Helvetica", 12, "bold")).pack(side=tk.LEFT, padx=15)
+            
+            # Time elapsed 
+            time_elapsed = int(time.time() - quiz_state.start_time)
+            tk.Label(master, text=f"Time Elapsed: {time_elapsed} seconds", font=("Helvetica", 10, "italic")).pack(pady=5)
+
+            # Problem 
+            problem_text = f"{quiz_state.num1} {quiz_state.operation} {quiz_state.num2} = ?"
+            tk.Label(master, text=problem_text, font=("Courier", 36, "bold"), fg="#00008B").pack(pady=20)
+            
+            # Entry 
+            answer_entry = tk.Entry(master, font=("Helvetica", 20), width=10, justify='center')
+            answer_entry.pack(pady=10)
+            answer_entry.focus_set()
+            
+            # Submit Button
+            submit_button = tk.Button(master, text="Submit Answer", 
+                              command=lambda: check_answer(master, answer_entry.get()),
+                              font=("Helvetica", 14, "bold"), bg="#FFD700", fg="black", width=15)
+            submit_button.pack(pady=10)
+            
+            # Re-bind 
+            master.bind('<Return>', lambda event: check_answer(master, answer_entry.get()))
+
+        else: 
+            messagebox.showwarning("Incorrect (2nd Attempt)", 
+                                   f"❌ Still Incorrect. The correct answer was {quiz_state.current_answer}.\nNo points awarded for this question.")
+            
+            # Move to the next question
+            displayProblem(master)
+
+def get_rank(score):
+    """
+    Ranks the user based on their score.
+    """
+    if score >= 90:
+        return "A+ (Master Mathematician!)"
+    elif score >= 80:
+        return "A (Excellent!)"
+    elif score >= 70:
+        return "B (Very Good)"
+    elif score >= 60:
+        return "C (Good)"
+    elif score >= 50:
+        return "D (Needs Improvement)"
+    else:
+        return "F (Keep Practicing)"
+
+def displayResults(master):
+    """
+    A function that outputs the user's final score and rank.
+    """
+    clear_frame(master)
+    
+    final_score = quiz_state.score
+    rank = get_rank(final_score)
+    time_taken_str = f"{quiz_state.time_taken:.2f}"
+    
+    master.title("🎉 Maths Quiz - Results")
+
+    tk.Label(master, text="--- QUIZ FINISHED ---", font=("Helvetica", 24, "bold"), fg="#1E90FF").pack(pady=(20, 10))
+    
+    # Summary
+    tk.Label(master, text="Your Performance Summary", font=("Helvetica", 16, "underline")).pack(pady=10)
+    
+    tk.Label(master, text=f"Total Score: {final_score} / {MAX_SCORE}", font=("Helvetica", 20, "bold"), fg="#4CAF50").pack(pady=5)
+    tk.Label(master, text=f"Your Rank: {rank}", font=("Helvetica", 18, "italic"), fg="#8B0000").pack(pady=5)
+    
+    # Stats Table
+    stats_frame = tk.Frame(master)
+    stats_frame.pack(pady=20)
+    
+    # Stat 1 - Time
+    tk.Label(stats_frame, text="Total Time:", font=("Helvetica", 12)).grid(row=0, column=0, padx=10, sticky='w')
+    tk.Label(stats_frame, text=f"{time_taken_str} seconds", font=("Helvetica", 12, "bold")).grid(row=0, column=1, padx=10, sticky='e')
+
+    # Stat 2 - Max Streak
+    tk.Label(stats_frame, text="Max Correct Streak:", font=("Helvetica", 12)).grid(row=1, column=0, padx=10, sticky='w')
+    tk.Label(stats_frame, text=f"{quiz_state.max_streak} questions", font=("Helvetica", 12, "bold")).grid(row=1, column=1, padx=10, sticky='e')
+    
+    # Replay Prompt
+    tk.Label(master, text="Would you like to play again?", font=("Helvetica", 14)).pack(pady=10)
+    
+    # Replay Buttons
+    button_frame = tk.Frame(master)
+    button_frame.pack(pady=10)
+    
+    tk.Button(button_frame, text="Yes, Play Again!", 
+              command=lambda: displayMenu(master),
+              font=("Helvetica", 12, "bold"), bg="#3CB371", fg="white", width=15).pack(side=tk.LEFT, padx=10)
+              
+    tk.Button(button_frame, text="Exit Quiz", 
+              command=master.quit,
+              font=("Helvetica", 12, "bold"), bg="#696969", fg="white", width=15).pack(side=tk.RIGHT, padx=10)
+
+
+# [Main Application]
+
+def main():
+    """Initializes and runs the Tkinter application."""
+    root = tk.Tk()
+    root.geometry("500x500") 
+    root.resizable(False, False)
+    
+    # The difficulty selection menu
+    displayMenu(root)
+    
+    # Start the Tkinter 
+    root.mainloop()
+
+if _name_ == "_main_":
+    main()
